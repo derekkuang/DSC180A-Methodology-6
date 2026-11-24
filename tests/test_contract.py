@@ -5,7 +5,7 @@ from sklearn.metrics import r2_score
 
 from src.config import FORBIDDEN, LAG_WARMUP, RAW, RAW_COLUMN_ROLES, TARGET
 from src.features import build_features, feature_columns, reindex_to_calendar
-from src.ingest import load_raw
+from src.ingest import check_raw_unchanged, load_raw
 from src.train import MODELS, temporal_split
 
 
@@ -17,6 +17,14 @@ def raw():
 @pytest.fixture(scope="module")
 def feats(raw):
     return build_features(raw)
+
+
+def test_raw_data_is_unchanged():
+    """Fault 4: imputing 2011-03-10 and `cp`-ing the result over the raw file
+    passed every other test, added 8 training rows and moved three of four
+    validation scores. Only a check on the bytes sees a change made by any
+    route (Bash, a script, a merge)."""
+    check_raw_unchanged()
 
 
 def test_calendar_is_complete_before_lagging(raw):

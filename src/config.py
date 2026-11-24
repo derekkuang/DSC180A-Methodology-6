@@ -20,6 +20,12 @@ DATA_URL = (
     "interpretable-ml-book/master/data/bike.csv"
 )
 
+# The bytes of data/raw/bike_daily.csv. The deny rules in .claude/settings.json
+# only stop the Edit and Write tools; a `cp` from Bash replaced the file and
+# every test stayed green (docs/SEEDED_FAULTS.md, fault 4). `make data` and
+# tests/test_contract.py compare against this pin.
+RAW_SHA256 = "a6bed1577f6e4de56dcfae6d8315985073cc0ad3446c8c99ed60c86a0b5ad9dc"
+
 TARGET = "cnt"
 
 # --- Three reasons a column is kept out of the feature set --------------

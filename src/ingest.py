@@ -2,12 +2,13 @@
 
 Run: python -m src.ingest
 """
+import hashlib
 import sys
 import urllib.request
 
 import pandas as pd
 
-from src.config import DATA_URL, RAW
+from src.config import DATA_URL, RAW, RAW_SHA256
 
 EXPECTED_MIN_ROWS = 700
 REQUIRED_COLS = {"dteday", "cnt", "casual", "registered", "temp", "hum", "windspeed"}
@@ -18,6 +19,16 @@ def download(force: bool = False) -> None:
         return
     RAW.parent.mkdir(parents=True, exist_ok=True)
     urllib.request.urlretrieve(DATA_URL, RAW)
+
+
+def check_raw_unchanged() -> None:
+    """Raw data is immutable: fail if its bytes differ from the pinned hash."""
+    actual = hashlib.sha256(RAW.read_bytes()).hexdigest()
+    if actual != RAW_SHA256:
+        raise ValueError(
+            f"{RAW.name} sha256 is {actual[:16]}..., expected {RAW_SHA256[:16]}... "
+            "Restore it with `git checkout -- data/raw/`; clean data in code, downstream."
+        )
 
 
 def load_raw() -> pd.DataFrame:
@@ -32,5 +43,6 @@ def load_raw() -> pd.DataFrame:
 
 if __name__ == "__main__":
     download(force="--force" in sys.argv)
+    check_raw_unchanged()
     df = load_raw()
     print(f"OK ingest: {len(df)} rows, {df.dteday.min().date()} -> {df.dteday.max().date()}")
