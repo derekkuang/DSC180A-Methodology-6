@@ -111,6 +111,22 @@ def test_rolling_max_excludes_today(feats):
     assert discriminating > 0, "no row distinguishes the window from one including today"
 
 
+def test_unseen_weather_label_raises():
+    """A label the encoder does not know must stop the pipeline.
+
+    The data only holds GOOD / MISTY / BAD, so nothing else exercises this
+    path. Without the raise, a relabelled day maps to NaN and dropna()
+    deletes it with every other test green: the 20 BAD days are exactly the
+    ones that would vanish if upstream changed "BAD" to "RAIN".
+    """
+    raw = load_raw()
+    bad = raw.weather == "BAD"
+    assert bad.sum() == 20, "fixture changed: expected 20 BAD days"
+    raw.loc[bad, "weather"] = "RAIN"
+    with pytest.raises(ValueError, match="unmapped weather labels"):
+        build_features(raw)
+
+
 def test_no_missing_values(feats):
     assert feats[feature_columns(feats)].isna().sum().sum() == 0
 
