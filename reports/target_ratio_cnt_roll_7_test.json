@@ -1,0 +1,73 @@
+{
+  "n_features": 15,
+  "features": [
+    "temp",
+    "atemp",
+    "hum",
+    "windspeed",
+    "dayofweek",
+    "is_weekend",
+    "is_holiday",
+    "is_workday",
+    "month_sin",
+    "month_cos",
+    "weather_severity",
+    "cnt_lag_1",
+    "cnt_lag_7",
+    "cnt_roll_7",
+    "cnt_max_7"
+  ],
+  "n_train": 348,
+  "n_valid": 182,
+  "n_test": 184,
+  "baseline_mean": {
+    "valid": {
+      "r2": -0.9318,
+      "mae": 2002.2
+    },
+    "test": {
+      "r2": -2.1441,
+      "mae": 2847.7
+    }
+  },
+  "baseline_persistence": {
+    "valid": {
+      "r2": 0.4507,
+      "mae": 900.6
+    },
+    "test": {
+      "r2": 0.5099,
+      "mae": 840.1
+    }
+  },
+  "anchor_only_cnt_roll_7": {
+    "valid": {
+      "r2": 0.5945,
+      "mae": 823.9
+    },
+    "test": {
+      "r2": 0.4796,
+      "mae": 871.6
+    }
+  },
+  "ridge_ratio_cnt_roll_7": {
+    "valid": {
+      "r2": 0.5278,
+      "mae": 954.2
+    },
+    "test": {
+      "r2": 0.1602,
+      "mae": 1376.0
+    }
+  },
+  "hgb_ratio_cnt_roll_7": {
+    "valid": {
+      "r2": 0.7366,
+      "mae": 712.8
+    },
+    "test": {
+      "r2": 0.6033,
+      "mae": 859.4
+    }
+  }
+}
