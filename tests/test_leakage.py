@@ -80,6 +80,37 @@ def test_rolling_mean_excludes_today(feats):
         assert feats.set_index("dteday").cnt_roll_7[date] == pytest.approx(expected)
 
 
+def test_rolling_max_excludes_today(feats):
+    """cnt_max_7 on date d must be max(cnt) over d-7 .. d-1 in calendar days.
+
+    Checked on every row whose full window is present, so a rows-not-days
+    shift across the 2011-03-10 gap fails. The window must exclude d itself:
+    we also require days where cnt[d] beats the prior 7, so a version that
+    forgot .shift(1) cannot pass by coincidence.
+    """
+    by_date = feats.set_index("dteday")[TARGET]
+    max7 = feats.set_index("dteday")["cnt_max_7"]
+
+    # Hand-computed from data/raw/bike_daily.csv. 2011-10-29 was the
+    # nor'easter (BAD, 627 rides); the 7 days before 2011-10-30 are
+    # 4381, 4187, 4687, 3894, 2659, 3747, 627, so the max is 4687
+    # (2011-10-25), while cnt_lag_1 is 627.
+    assert max7[pd.Timestamp("2011-10-30")] == 4687
+    assert feats.set_index("dteday").cnt_lag_1[pd.Timestamp("2011-10-30")] == 627
+
+    checked = discriminating = 0
+    for date, value in max7.items():
+        window = [date - pd.Timedelta(days=k) for k in range(1, 8)]
+        if not all(d in by_date.index for d in window):
+            continue
+        expected = max(by_date[d] for d in window)
+        assert value == pytest.approx(expected), f"bad cnt_max_7 at {date.date()}"
+        checked += 1
+        discriminating += by_date[date] > expected
+    assert checked > 600, "too few rows actually verified"
+    assert discriminating > 0, "no row distinguishes the window from one including today"
+
+
 def test_no_missing_values(feats):
     assert feats[feature_columns(feats)].isna().sum().sum() == 0
 
