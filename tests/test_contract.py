@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from sklearn.metrics import r2_score
 
-from src.config import LAG_WARMUP, TARGET
+from src.config import FORBIDDEN, LAG_WARMUP, RAW, RAW_COLUMN_ROLES, TARGET
 from src.features import build_features, feature_columns, reindex_to_calendar
 from src.ingest import load_raw
 from src.train import MODELS, temporal_split
@@ -41,6 +41,23 @@ def test_only_expected_rows_are_dropped(raw, feats):
     allowed_loss = LAG_WARMUP + LAG_WARMUP * missing_days
     lost = len(raw) - len(feats)
     assert lost <= allowed_loss, f"lost {lost} rows; expected at most {allowed_loss}"
+
+
+def test_every_raw_column_is_classified(feats):
+    """A new column in the raw data must not enter the model silently.
+
+    Reads the CSV header directly, not load_raw(), so the check does not
+    depend on what the loader happens to keep. Every column must be dteday,
+    in FORBIDDEN, or have a role in RAW_COLUMN_ROLES; and a raw column that
+    reaches feature_columns() under its own name must have the role "model".
+    """
+    header = set(pd.read_csv(RAW, nrows=0).columns)
+    unclassified = header - FORBIDDEN - set(RAW_COLUMN_ROLES) - {"dteday"}
+    assert not unclassified, f"raw columns with no role in src/config.py: {sorted(unclassified)}"
+
+    passed_through = header & set(feature_columns(feats))
+    not_model = {c for c in passed_through if RAW_COLUMN_ROLES.get(c) != "model"}
+    assert not not_model, f"raw columns used as features without role 'model': {sorted(not_model)}"
 
 
 def test_beats_the_mean_baseline(feats):
