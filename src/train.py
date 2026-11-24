@@ -14,11 +14,19 @@ nothing worth reporting. The booster is there because it fails, and the
 reason it fails is the headline result.
 
 Run: python -m src.train
+
+Exercise 4 (never part of `make all`; reports/metrics.json stays untransformed):
+  python -m src.train --target-transform ratio --anchor cnt_max_7
+fits ridge and hgb on a re-expressed target and scores validation only,
+next to both baselines and the anchor alone. --test scores test as well; it
+is run once, for the transform chosen on validation.
 """
+import argparse
 import json
 
+import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Ridge
@@ -45,6 +53,41 @@ class PersistenceBaseline(BaseEstimator, RegressorMixin):
         return X[self.column].to_numpy(dtype=float)
 
 
+class RelativeTarget(BaseEstimator, RegressorMixin):
+    """Fit `model` on a transformed target, predict on the original scale.
+
+      log:    learn log(cnt)              predict exp(f(X))
+      ratio:  learn cnt / anchor          predict anchor * f(X)
+      diff:   learn cnt - anchor          predict anchor + f(X)
+
+    The anchor is a lag column (built with shift(1)), so it is known at
+    prediction time. A tree predicts only values it saw in training; with an
+    anchor it predicts a relative move and the anchor carries the level.
+    """
+
+    def __init__(self, model=None, kind: str = "ratio", anchor: str = "cnt_max_7"):
+        self.model = model
+        self.kind = kind
+        self.anchor = anchor
+
+    def _anchor(self, X):
+        return X[self.anchor].to_numpy(dtype=float)
+
+    def fit(self, X, y):
+        y = np.asarray(y, dtype=float)
+        z = {"log": lambda: np.log(y),
+             "ratio": lambda: y / self._anchor(X),
+             "diff": lambda: y - self._anchor(X)}[self.kind]()
+        self.model_ = clone(self.model).fit(X, z)
+        return self
+
+    def predict(self, X):
+        z = self.model_.predict(X)
+        if self.kind == "log":
+            return np.exp(z)
+        return self._anchor(X) * z if self.kind == "ratio" else self._anchor(X) + z
+
+
 MODELS = {
     "baseline_mean": DummyRegressor(strategy="mean"),
     "baseline_persistence": PersistenceBaseline("cnt_lag_1"),
@@ -62,7 +105,7 @@ def temporal_split(df: pd.DataFrame):
     return train, valid, test
 
 
-def fit_and_score() -> dict:
+def fit_and_score(models: dict = MODELS, splits=("valid", "test")) -> dict:
     df = pd.read_parquet(PROCESSED)
     cols = feature_columns(df)
     train, valid, test = temporal_split(df)
@@ -74,7 +117,7 @@ def fit_and_score() -> dict:
         "n_valid": len(valid),
         "n_test": len(test),
     }
-    for name, model in MODELS.items():
+    for name, model in models.items():
         model.fit(train[cols], train[TARGET])
         results[name] = {
             split: {
@@ -82,12 +125,30 @@ def fit_and_score() -> dict:
                 "mae": round(float(mean_absolute_error(part[TARGET], model.predict(part[cols]))), 1),
             }
             for split, part in [("valid", valid), ("test", test)]
+            if split in splits
         }
     return results
 
 
 if __name__ == "__main__":
-    res = fit_and_score()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--target-transform", choices=["log", "ratio", "diff"])
+    ap.add_argument("--anchor", choices=["cnt_lag_1", "cnt_roll_7", "cnt_max_7"], default="cnt_max_7")
+    ap.add_argument("--test", action="store_true", help="also score test (Exercise 4: once, at the end)")
+    ns = ap.parse_args()
     METRICS.parent.mkdir(parents=True, exist_ok=True)
-    METRICS.write_text(json.dumps(res, indent=2))
+
+    if ns.target_transform is None:
+        res = fit_and_score()
+        out = METRICS
+    else:
+        tag = ns.target_transform if ns.target_transform == "log" else f"{ns.target_transform}_{ns.anchor}"
+        models = {name: MODELS[name] for name in ("baseline_mean", "baseline_persistence")}
+        if ns.target_transform != "log":
+            models[f"anchor_only_{ns.anchor}"] = PersistenceBaseline(ns.anchor)
+        for name in ("ridge", "hgb"):
+            models[f"{name}_{tag}"] = RelativeTarget(MODELS[name], ns.target_transform, ns.anchor)
+        res = fit_and_score(models, ("valid", "test") if ns.test else ("valid",))
+        out = METRICS.parent / f"target_{tag}{'_test' if ns.test else ''}.json"
+    out.write_text(json.dumps(res, indent=2))
     print(json.dumps({k: v for k, v in res.items() if k != "features"}, indent=2))
