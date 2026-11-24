@@ -1,7 +1,7 @@
 ---
 name: ablation
 description: Drop one or more features, refit ridge and hgb, and report the validation R^2/MAE delta next to both baselines. Use when asked whether a feature earns its place, what a group of features contributes, or to ablate/remove/drop a predictor. Never scores the test split.
-allowed-tools: Read, Bash(make features*), Bash(python -m src.ablation*)
+allowed-tools: Read, Bash(python -c *), Bash(make features*), Bash(python -m src.ablation*)
 ---
 
 # Ablation: $ARGUMENTS
