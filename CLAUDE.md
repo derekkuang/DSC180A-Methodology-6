@@ -8,7 +8,10 @@ rides) from calendar, weather, and lagged-demand features.
 - `make features` - build `data/processed/features.parquet`
 - `make train` - fit models, write `reports/metrics.json`
 - `make test` - pytest; run this before claiming anything works
-- `make all` - the three pipeline stages in order
+- `make all` - the three pipeline stages in order; reproduces every number
+  in `REPORT.md` (headline: ridge test R^2 0.6335 vs persistence 0.5099)
+- `/new-feature <name>` to add a feature; `/ablation <feature...>` to
+  measure one (validation only, via `python -m src.ablation`)
 
 ## Non-negotiable rules
 - **Never** put `casual` or `registered` in a feature set:
@@ -20,6 +23,13 @@ rides) from calendar, weather, and lagged-demand features.
 - Any new lag or rolling feature must be built on a gap-free calendar
   index (`src.features.reindex_to_calendar`) and must `.shift(1)` before
   it aggregates. Add a test for it in `tests/test_leakage.py`.
+- **Never** write to `data/raw/`, by any tool. Its sha256 is pinned in
+  `src/config.py` and checked by `make data` and `make test`; a PreToolUse
+  hook blocks shell writes. Clean data in `src/`, downstream of `load_raw`.
+- Every raw column needs a role in `RAW_COLUMN_ROLES` (or `FORBIDDEN`);
+  a new column fails `make test` until someone decides what it is.
+- Score test only through `make all`, once, after feature work. Iterate on
+  validation (`/ablation`, `--target-transform` without `--test`).
 - Report the mean baseline **and** the persistence baseline (yesterday's
   count) alongside every model. A negative R^2 is a finding, not a bug
   to hide.
