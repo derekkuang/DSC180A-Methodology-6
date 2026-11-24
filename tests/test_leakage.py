@@ -4,10 +4,11 @@ test_no_forbidden_features is the single most valuable test in this repo:
 casual + registered == cnt exactly, so any model handed those columns
 scores R^2 = 1.0 and looks brilliant while having learned nothing.
 """
+import numpy as np
 import pandas as pd
 import pytest
 
-from src.config import FORBIDDEN, TARGET
+from src.config import FORBIDDEN, LEAKAGE_COLS, TARGET
 from src.features import build_features, feature_columns
 from src.ingest import load_raw
 
@@ -29,6 +30,28 @@ def test_no_forbidden_features(feats):
     exactly the fault the Step 7 hook demonstrates."""
     cols = set(feature_columns(feats))
     assert not (cols & FORBIDDEN), f"forbidden columns in feature set: {cols & FORBIDDEN}"
+
+
+def test_no_feature_restates_a_leakage_column(feats):
+    """Check values, not names. test_no_forbidden_features only sees names,
+    so `out["riders"] = out.casual + out.registered` passes it. Here:
+
+      * no single feature may rank-correlate with cnt, casual or registered
+        at |rho| > 0.999 (catches monotone restatements such as log(cnt));
+      * cnt, casual and registered must each be unrecoverable as a linear
+        combination of *all* features at once: the least-squares fit must
+        miss by at least half a ride on some day. They are integers, so a
+        fit inside 0.5 everywhere recovers them exactly by rounding.
+    """
+    cols = feature_columns(feats)
+    X = np.column_stack([feats[cols].to_numpy(dtype=float), np.ones(len(feats))])
+    for target in sorted(LEAKAGE_COLS):
+        y = feats[target].astype(float)
+        rho = feats[cols].corrwith(y, method="spearman").abs()
+        assert not (rho > 0.999).any(), f"{list(rho[rho > 0.999].index)} restate {target!r}"
+        coef, *_ = np.linalg.lstsq(X, y.to_numpy(), rcond=None)
+        worst = float(np.abs(X @ coef - y.to_numpy()).max())
+        assert worst >= 0.5, f"features jointly restate {target!r} (max residual {worst:.2g})"
 
 
 def test_lags_are_true_calendar_lags(feats):
