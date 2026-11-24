@@ -8,3 +8,4 @@ Agents append here via the `/new-feature` skill; you append here by hand.
 - Exclude `instant`, `yr`, `days_since_2011`: time indexes let a tree predict a flat constant past 2011 and a linear model extrapolate a trend we have no grounds for.
 - Split 2011 / H1 2012 / H2 2012 by date. Test set touched once, after all feature work.
 - Report mean and persistence baselines with every score. Persistence (test R^2 0.510, MAE 840) is within 0.07 R^2 of ridge and beats it on MAE; that caveat goes in the report.
+- 2026-11-23 Add `cnt_max_7`, the max of `cnt` over d-7..d-1 (shifted before rolling, on the calendar grid; no LAG_WARMUP change, no rows lost). Available: every input is a past day's count. Validation R^2: ridge 0.6475 -> 0.7072 (+0.060), hgb 0.2185 -> 0.1428 (-0.076). Kept: ridge is the model we report, and its gain is 6x the 0.01 noise bar; hgb's loss is the same extrapolation failure as before, not a reason to drop it. Test not read.

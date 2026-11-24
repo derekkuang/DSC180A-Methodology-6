@@ -74,6 +74,9 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["cnt_lag_1"] = out[TARGET].shift(1)
     out["cnt_lag_7"] = out[TARGET].shift(LAG_WARMUP)
     out["cnt_roll_7"] = out[TARGET].shift(1).rolling(LAG_WARMUP).mean()
+    # Recent peak: one storm day drags cnt_lag_1 and cnt_roll_7 down, but
+    # not the max of the previous week, which tracks the demand level.
+    out["cnt_max_7"] = out[TARGET].shift(1).rolling(LAG_WARMUP).max()
 
     return out.dropna().reset_index(drop=True)
 
